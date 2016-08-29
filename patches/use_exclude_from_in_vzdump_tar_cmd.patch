@@ -1,0 +1,13 @@
+Index: proxpatches/rootfs/usr/share/perl5/PVE/VZDump/LXC.pm
+===================================================================
+--- proxpatches.orig/rootfs/usr/share/perl5/PVE/VZDump/LXC.pm
++++ proxpatches/rootfs/usr/share/perl5/PVE/VZDump/LXC.pm
+@@ -326,7 +326,7 @@ sub archive {
+     my $tmpdir = $task->{tmpdir};
+ 
+     my $userns_cmd = $task->{userns_cmd};
+-    my $tar = [@$userns_cmd, 'tar', 'cpf', '-', '--totals',
++    my $tar = [@$userns_cmd, 'tar', 'cpf', '-', '--totals', '--exclude-from=/etc/vzdump-excludes',
+                @$PVE::LXC::COMMON_TAR_FLAGS,
+                '--one-file-system', '--warning=no-file-ignored'];
+ 

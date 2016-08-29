@@ -1,0 +1,13 @@
+Index: proxpatches/rootfs/usr/share/pve-manager/ext6/pvemanagerlib.js
+===================================================================
+--- proxpatches.orig/rootfs/usr/share/pve-manager/ext6/pvemanagerlib.js
++++ proxpatches/rootfs/usr/share/pve-manager/ext6/pvemanagerlib.js
+@@ -513,7 +513,7 @@ Ext.define('PVE.Utils', { statics: {
+ 	    success: function(response, opts) {
+ 		var data = response.result.data;
+ 
+-		if (data.status !== 'Active') {
++		if (false) {
+ 		    Ext.Msg.show({
+ 			title: gettext('No valid subscription'),
+ 			icon: Ext.Msg.WARNING,

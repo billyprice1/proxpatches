@@ -1,0 +1,3 @@
+DPkg::Pre-Invoke      { "/root/proxpatches/pre-apt-unpatch.sh;"; };
+DPkg::Post-Invoke      { "/root/proxpatches/post-apt-patch.sh;"; };
+
