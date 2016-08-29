@@ -1,0 +1,12 @@
+var/tmp/*
+var/run/*.pid
+*/tmp/*
+home/build/yocto/modules/*
+home/*/builds/*
+home/*/devel/*
+home/build/opt/*
+home/*/opt/*
+home/*/Downloads/*
+home/*/public_html/nightly/*
+var/backup/*
+var/cache/*
