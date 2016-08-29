@@ -1,6 +1,6 @@
 This repo contains patches we maintain on top of the vanilla Proxmox installation.
 
-# initial setup
+# Initial setup
 clone this repo to the proxmox system and do first time init.
 
 As root on the system:
@@ -12,12 +12,12 @@ cd proxpatches
 ./apply-permanent-patches.sh
 ```
 
-# adding files in non-apt managed directories
+# Adding files in non-apt managed directories
 Simply reproduce the directory tree leading to the new file under ./files then
 add your new file. To apply this new file to the system's rootfs, run ./apply-permanent-patches.sh
 again.
 
-# patching apt-managed files
+# Patching apt-managed files (like /usr/...)
 ```
 cd /root/proxpatches
 ./mountrootfs # does a mount --bind of / to ./rootfs (needed for quilt to work)
