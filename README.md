@@ -1,6 +1,12 @@
 This repo contains patches we maintain on top of the vanilla Proxmox installation.
 
 # Initial setup
+## Pre-requisites
+```
+apt-get update
+apt-get install git
+```
+
 clone this repo to the proxmox system and do first time init.
 
 As root on the system:
