@@ -1,6 +1,12 @@
 #!/bin/bash
 
-apt-get install -y htop quilt
+apt-get install -y \
+htop \
+quilt \
+curl \
+tree \
+ncdu \
+pv \
 
 rsync -axvP files/ /
 
