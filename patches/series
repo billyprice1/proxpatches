@@ -1,2 +1,3 @@
 disable-pve-no-subscription-popup.patch
 use_exclude_from_in_vzdump_tar_cmd.patch
+hack-storage-pm-to-expect-pre-migration-snapshot.patch

@@ -1,0 +1,15 @@
+Index: proxpatches/rootfs/usr/share/perl5/PVE/Storage.pm
+===================================================================
+--- proxpatches.orig/rootfs/usr/share/perl5/PVE/Storage.pm
++++ proxpatches/rootfs/usr/share/perl5/PVE/Storage.pm
+@@ -524,8 +524,8 @@ sub storage_migrate {
+ 
+ 	    my $snap = ['zfs', 'snapshot', "$zfspath\@__migration__"];
+ 
+-	    my $send = [['zfs', 'send', '-Rpv', "$zfspath\@__migration__"], ['ssh', "root\@$target_host",
+-			'zfs', 'recv', $zfspath]];
++	    my $send = [['zfs', 'send', '-pvI', "$zfspath\@__pre_migration__", "$zfspath\@__migration__"], ['ssh', "root\@$target_host",
++			'zfs', 'recv', '-uF', $zfspath]];
+ 
+ 	    my $destroy_target = ['ssh', "root\@$target_host", 'zfs', 'destroy', "$zfspath\@__migration__"];
+  	    run_command($snap);
