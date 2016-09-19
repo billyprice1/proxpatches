@@ -1,0 +1,26 @@
+#!/bin/bash
+set -e
+
+if [ -z "$2" ]; then
+	PATTERN=.
+else
+	PATTERN=$2
+fi
+
+SNAPSHOTS=`zfs list -r -H -t snapshot $1 |grep "$PATTERN"| cut -f 1`
+echo "The following snapshots will be released:"
+echo
+echo "$SNAPSHOTS" | tr ' ' '\n'
+echo
+echo "Hit ctrl-c to cancel, or enter to proceed"
+read DUMMY
+
+set +e
+
+for snapshot in $SNAPSHOTS
+do
+	echo "releasing $snapshot"
+	zfs release -r freenas:repl $snapshot
+	zfs release -r .send-16191-1 $snapshot
+done
+

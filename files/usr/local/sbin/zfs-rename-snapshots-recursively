@@ -1,0 +1,27 @@
+#!/bin/bash
+
+if [ -z "$2" ]; then
+	PATTERN=.
+else
+	PATTERN=$2
+fi
+
+SNAPSHOTS=`zfs list -r -H -t snap -o name $1 |grep "$PATTERN"`
+echo "The following snapshots will be renamed:"
+echo
+echo "$SNAPSHOTS" | tr ' ' '\n'
+echo
+echo "Hit ctrl-c to cancel, or enter to proceed"
+read DUMMY
+
+for snapshot in $SNAPSHOTS
+do
+	NEWNAME=${snapshot%-??}-2y
+
+	if [ "$NEWNAME" != "$snapshot" ]
+	then
+		echo "rename $snapshot to $NEWNAME"
+		[ -n "$DRYRUN" ] || zfs rename $snapshot $NEWNAME
+	fi
+done
+
