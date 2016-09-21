@@ -9,8 +9,11 @@ rsync -axvP files/ /
 
 if ! date | grep -q EDT
 then
-    dpkg-reconfigure tzdata locales
+    dpkg-reconfigure tzdata
 fi
+
+sed -i 's/^\# en_CA.UTF-8/en_CA.UTF-8/' /etc/locale.gen
+locale-gen
 
 apt-get update
 apt-get dist-upgrade
