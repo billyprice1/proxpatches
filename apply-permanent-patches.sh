@@ -16,7 +16,7 @@ sed -i 's/^\# en_CA.UTF-8/en_CA.UTF-8/' /etc/locale.gen
 locale-gen
 
 apt-get update
-apt-get dist-upgrade
+apt-get dist-upgrade -y
 
 
 apt-get install -y \
@@ -32,7 +32,7 @@ znapzendVer=0.15.7
 if [ ! -e /opt/znapzend-$znapzendVer ]
 then
 {
-	apt-get install build-essential
+	apt-get install -y build-essential
 	TMPDIR=$(mktemp -d)
 	trap 'rm -rf $TMPDIR' EXIT
 
