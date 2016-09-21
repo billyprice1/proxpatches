@@ -3,6 +3,8 @@ This repo contains patches we maintain on top of the vanilla Proxmox installatio
 # Initial setup
 ## Pre-requisites
 ```
+cat ~/.ssh/id_rsa.pub | ssh root@proxsrv "cat >> .ssh/authorized_keys"
+ssh root@proxsrv
 sed -i 's!ftp\.ca\.debian\.org!ftp.us.debian.org!' /etc/apt/sources.list
 apt-get update
 apt-get install git
