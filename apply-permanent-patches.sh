@@ -3,6 +3,8 @@
 set -e
 
 rm -fv /etc/apt/sources.list.d/pve-enterprise.list
+apt-get install quilt
+
 rsync -axvP files/ /
 
 if ! date | grep -q EDT
@@ -27,6 +29,7 @@ znapzendVer=0.15.7
 if [ ! -e /opt/znapzend-$znapzendVer ]
 then
 {
+	apt-get install build-essential
 	TMPDIR=$(mktemp -d)
 	trap 'rm -rf $TMPDIR' EXIT
 
@@ -49,4 +52,5 @@ then
 }
 fi
 
+cd /root/proxpatches
 ./post-apt-patch.sh
