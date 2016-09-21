@@ -8,4 +8,4 @@ cd $(dirname $(realpath $0))
 
 trap 'umount ./rootfs' EXIT
 
-quilt pop -a
+quilt pop -a || ! quilt applied > /dev/null
