@@ -2,18 +2,43 @@
 
 set -e
 
-if [[ $(zfs list -H -o mountpoint rpool/docker 2>/dev/null) != /var/lib/docker ]]
+echo "Stopping dockerd..."
+
+# stop dockerd if running
+! pidof dockerd &>/dev/null || service docker stop
+
+if zfs list -r -H -o mountpoint | grep -q /var/lib/docker
 then
+	echo "docker zfs dataset already exists, skipping."
+else
 	echo "Creating zfs dataset for docker"
-	# stop dockerd if running
-	! pidof dockerd &>/dev/null || service docker stop
 
 	rm --interactive=once -rf /var/lib/docker
-	zfs create -o sync=disabled -o mountpoint=/var/lib/docker rpool/docker
-else
-	echo "docker zfs dataset already exists, skipping."
+	zfs create \
+		-o sync=disabled \
+		-o mountpoint=/var/lib/docker \
+		-o com.sun:auto-snapshot=false \
+		rpool/docker
 fi
 
+mkdir -p /etc/systemd/system/docker.service.d
+cat > /etc/systemd/system/docker.service.d/zfs-storage.conf <<EOF
+[Service]
+ExecStart=
+ExecStart=/usr/bin/dockerd -H fd:// -s zfs
+EOF
+
+cat > /etc/systemd/system/docker.service.d/xxnice.conf <<EOF
+[Service]
+Nice=19
+IOSchedulingClass=3
+IOSchedulingPriority=7
+CPUSchedulingPolicy=idle
+CPUSchedulingPriority=10
+EOF
+
+# make systemd consider this new file
+systemctl daemon-reload
 
 if ! dpkg -s docker-engine &>/dev/null
 then
@@ -23,22 +48,6 @@ fi
 # start dockerd if not running
 pidof dockerd &>/dev/null || service docker start
 
-if ! docker info | grep "Storage Driver: zfs"
-then
-	! pidof dockerd || service docker stop
-
-	mkdir /etc/systemd/system/docker.service.d
-	cat > /etc/systemd/system/docker.service.d/zfs-storage.conf <<EOF
-[Service]
-ExecStart=
-ExecStart=/usr/bin/dockerd -H fd:// -s zfs
-EOF
-
-	# make systemd consider this new file
-	systemctl daemon-reload
-
-	service docker start
-	docker info |grep "Storage Driver: zfs"
-fi
+docker info | grep "Storage Driver: zfs"
 
 echo "All done OK."
