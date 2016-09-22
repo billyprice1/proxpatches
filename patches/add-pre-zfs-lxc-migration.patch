@@ -1,0 +1,171 @@
+Index: proxpatches/rootfs/usr/share/perl5/PVE/LXC/Migrate.pm
+===================================================================
+--- proxpatches.orig/rootfs/usr/share/perl5/PVE/LXC/Migrate.pm
++++ proxpatches/rootfs/usr/share/perl5/PVE/LXC/Migrate.pm
+@@ -31,12 +31,36 @@ sub prepare {
+
+     PVE::LXC::Config->check_lock($conf);
+
++    # test ssh connection
++    my $cmd = [ @{$self->{rem_ssh}}, '/bin/true' ];
++    eval { $self->cmd_quiet($cmd); };
++    die "Can't connect to destination address using public key\n" if $@;
++
++    PVE::LXC::Config->foreach_mountpoint($conf, sub {
++	my ($ms, $mountpoint, $snapname) = @_;
++
++	my $volid = $mountpoint->{volume};
++    	my ($sid, $volname) = PVE::Storage::parse_volume_id($volid);
++    	my $scfg =  PVE::Storage::storage_config($self->{storecfg}, $sid);
++    	if ($scfg->{type} eq 'zfspool') {
++		$self->log('info', "Sending a current snapshot of CT $vmid to remote node '$self->{node}'");
++		eval { PVE::Storage::storage_zfs_pre_migrate($self->{storecfg}, $volid, $self->{nodeip}, $sid); };
++		die "__pre_migration__ failed" if $@;
++		$self->log('info', "current snapshot of CT $vmid done. Moving on with actual migration");
++    	}
++    });
++
+     my $running = 0;
++    my $wasRunning = 0;
+     if (PVE::LXC::check_running($vmid)) {
+-	die "lxc live migration is currently not implemented\n";
+-
+-	die "can't migrate running container without --online\n" if !$online;
+-	$running = 1;
++	$self->log('info', "Shutting down CT $vmid...");
++	eval { $self->cmd_quiet([ 'lxc-stop', '-n', "$vmid" ]); };
++	die "Could not lxc-stop the container\n" if $@;
++
++	# make sure container is stopped
++	eval { $self->cmd_quiet([ 'lxc-wait', '-n', "$vmid", '-s', 'STOPPED' ]); };
++	die "lxc-wait failed\n" if $@;
++	$wasRunning = 1;
+     }
+
+     my $force = $self->{opts}->{force} // 0;
+@@ -78,12 +102,7 @@ sub prepare {
+
+     # todo: test if VM uses local resources
+
+-    # test ssh connection
+-    my $cmd = [ @{$self->{rem_ssh}}, '/bin/true' ];
+-    eval { $self->cmd_quiet($cmd); };
+-    die "Can't connect to destination address using public key\n" if $@;
+-
+-    return $running;
++    return $wasRunning; # need to return this for phase2 (restart on other node) to occure
+ }
+
+ sub phase1 {
+@@ -246,8 +265,8 @@ sub phase1 {
+     my $conffile = PVE::LXC::Config->config_file($vmid);
+     my $newconffile = PVE::LXC::Config->config_file($vmid, $self->{node});
+
+-    if ($self->{running}) {
+-	die "implement me";
++    if (PVE::LXC::check_running($vmid)) {
++	die "Full live LXC migration is not supported.";
+     }
+
+     # make sure everything on (shared) storage is unmounted
+@@ -280,6 +299,16 @@ sub phase1_cleanup {
+     }
+ }
+
++sub phase2 {
++	my ($self, $vmid) = @_;
++
++	$self->log('info', "starting CT $vmid on remote node '$self->{node}'");
++
++	my $cmd = [@{$self->{rem_ssh}}, 'pct', 'start', $vmid, '-skiplock' ];
++	eval { $self->cmd($cmd); };
++	$self->log('err', "CT is migrated to '$self->{node}', however it failed to start. Review error and fix yourself...") if $@;
++}
++
+ sub phase3 {
+     my ($self, $vmid) = @_;
+
+Index: proxpatches/rootfs/usr/share/perl5/PVE/Storage.pm
+===================================================================
+--- proxpatches.orig/rootfs/usr/share/perl5/PVE/Storage.pm
++++ proxpatches/rootfs/usr/share/perl5/PVE/Storage.pm
+@@ -524,17 +524,17 @@ sub storage_migrate {
+
+ 	    my $snap = ['zfs', 'snapshot', "$zfspath\@__migration__"];
+
+-	    my $send = [['zfs', 'send', '-Rpv', "$zfspath\@__migration__"], ['ssh', "root\@$target_host",
+-			'zfs', 'recv', $zfspath]];
++	    my $send = [['zfs', 'send', '-pvI', "$zfspath\@__pre_migration__", "$zfspath\@__migration__"], ['ssh', "root\@$target_host",
++			'zfs', 'recv', '-uF', $zfspath]];
+
+-	    my $destroy_target = ['ssh', "root\@$target_host", 'zfs', 'destroy', "$zfspath\@__migration__"];
++	    my $destroy_target = ['ssh', "root\@$target_host", 'zfs', 'destroy', "$zfspath\@__pre_migration__\%__migration__"];
+  	    run_command($snap);
+ 	    eval{
+ 		run_command($send);
+ 	    };
+ 	    my $err;
+ 	    if ($err = $@){
+-		run_command(['zfs', 'destroy', "$zfspath\@__migration__"]);
++		run_command(['zfs', 'destroy', "$zfspath\@__pre_migration__\%__migration__"]);
+ 		die $err;
+ 	    }
+ 	    run_command($destroy_target);
+@@ -579,6 +579,58 @@ sub storage_migrate {
+     }
+ }
+
++sub storage_zfs_pre_migrate {
++    my ($cfg, $volid, $target_host, $target_storeid, $target_volname) = @_;
++
++    my ($storeid, $volname) = parse_volume_id($volid);
++    $target_volname = $volname if !$target_volname;
++
++    my $scfg = storage_config($cfg, $storeid);
++
++    # no need to migrate shared content
++    return if $storeid eq $target_storeid && $scfg->{shared};
++
++    my $tcfg = storage_config($cfg, $target_storeid);
++
++    my $target_volid = "${target_storeid}:${target_volname}";
++
++    my $errstr = "unable to migrate '$volid' to '${target_volid}' on host '$target_host'";
++
++    die "$errstr - source type '$scfg->{type}' not implemented\n" if ($scfg->{type} ne 'zfspool');
++
++    die "$errstr - pool on target does not have the same name as on source!"
++	if $tcfg->{pool} ne $scfg->{pool};
++
++    my $sshoptions = "-o 'BatchMode=yes'";
++    my $ssh = "/usr/bin/ssh $sshoptions";
++
++    #local $ENV{RSYNC_RSH} = $ssh;
++
++    my (undef, $zfsDataset) = parse_volname($cfg, $volid);
++
++    my $zfspath = "$scfg->{pool}\/$zfsDataset";
++
++    my $snap = ['zfs', 'snapshot', "$zfspath\@__pre_migration__"];
++
++    my $send = [['zfs', 'send', '-Rpv', "$zfspath\@__pre_migration__"], ['ssh', "root\@$target_host",
++		'zfs', 'recv', $zfspath]];
++
++    run_command($snap);
++    eval{
++	run_command($send);
++    };
++    my $err;
++    my $pre_migration_snapshot_destroy_cmd = ['zfs', 'destroy', "$zfspath\@__pre_migration__"];
++    if ($err = $@){
++	run_command($pre_migration_snapshot_destroy_cmd);
++	die $err;
++    }
++
++    # return cmds to execute in case to cleanup what was done here
++    return ( $pre_migration_snapshot_destroy_cmd,
++             ['ssh', "root\@$target_host", "zfs", "destroy", "-r", "$zfspath"] );
++}
++
+ sub vdisk_clone {
+     my ($cfg, $volid, $vmid, $snap) = @_;
