@@ -2,7 +2,7 @@ Index: proxpatches/rootfs/usr/share/perl5/PVE/VZDump/LXC.pm
 ===================================================================
 --- proxpatches.orig/rootfs/usr/share/perl5/PVE/VZDump/LXC.pm
 +++ proxpatches/rootfs/usr/share/perl5/PVE/VZDump/LXC.pm
-@@ -326,7 +326,7 @@ sub archive {
+@@ -327,7 +327,7 @@ sub archive {
      my $tmpdir = $task->{tmpdir};
  
      my $userns_cmd = $task->{userns_cmd};
