@@ -41,6 +41,7 @@ registerRunner()
 	--non-interactive \
 	--url=http://gitlab.sonatest.net/ci \
 	--registration-token=$token \
+	--tags=docker \
 	--executor=docker \
 	--docker-image=alpine \
 
