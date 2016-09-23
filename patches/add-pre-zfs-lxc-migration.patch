@@ -3,9 +3,9 @@ Index: proxpatches/rootfs/usr/share/perl5/PVE/LXC/Migrate.pm
 --- proxpatches.orig/rootfs/usr/share/perl5/PVE/LXC/Migrate.pm
 +++ proxpatches/rootfs/usr/share/perl5/PVE/LXC/Migrate.pm
 @@ -31,12 +31,36 @@ sub prepare {
-
+ 
      PVE::LXC::Config->check_lock($conf);
-
+ 
 +    # test ssh connection
 +    my $cmd = [ @{$self->{rem_ssh}}, '/bin/true' ];
 +    eval { $self->cmd_quiet($cmd); };
@@ -41,12 +41,12 @@ Index: proxpatches/rootfs/usr/share/perl5/PVE/LXC/Migrate.pm
 +	die "lxc-wait failed\n" if $@;
 +	$wasRunning = 1;
      }
-
+ 
      my $force = $self->{opts}->{force} // 0;
 @@ -78,12 +102,7 @@ sub prepare {
-
+ 
      # todo: test if VM uses local resources
-
+ 
 -    # test ssh connection
 -    my $cmd = [ @{$self->{rem_ssh}}, '/bin/true' ];
 -    eval { $self->cmd_quiet($cmd); };
@@ -55,23 +55,23 @@ Index: proxpatches/rootfs/usr/share/perl5/PVE/LXC/Migrate.pm
 -    return $running;
 +    return $wasRunning; # need to return this for phase2 (restart on other node) to occure
  }
-
+ 
  sub phase1 {
 @@ -246,8 +265,8 @@ sub phase1 {
      my $conffile = PVE::LXC::Config->config_file($vmid);
      my $newconffile = PVE::LXC::Config->config_file($vmid, $self->{node});
-
+ 
 -    if ($self->{running}) {
 -	die "implement me";
 +    if (PVE::LXC::check_running($vmid)) {
 +	die "Full live LXC migration is not supported.";
      }
-
+ 
      # make sure everything on (shared) storage is unmounted
 @@ -280,6 +299,16 @@ sub phase1_cleanup {
      }
  }
-
+ 
 +sub phase2 {
 +	my ($self, $vmid) = @_;
 +
@@ -84,20 +84,20 @@ Index: proxpatches/rootfs/usr/share/perl5/PVE/LXC/Migrate.pm
 +
  sub phase3 {
      my ($self, $vmid) = @_;
-
+ 
 Index: proxpatches/rootfs/usr/share/perl5/PVE/Storage.pm
 ===================================================================
 --- proxpatches.orig/rootfs/usr/share/perl5/PVE/Storage.pm
 +++ proxpatches/rootfs/usr/share/perl5/PVE/Storage.pm
-@@ -524,17 +524,17 @@ sub storage_migrate {
-
+@@ -578,17 +578,17 @@ sub storage_migrate {
+ 
  	    my $snap = ['zfs', 'snapshot', "$zfspath\@__migration__"];
-
+ 
 -	    my $send = [['zfs', 'send', '-Rpv', "$zfspath\@__migration__"], ['ssh', "root\@$target_host",
 -			'zfs', 'recv', $zfspath]];
 +	    my $send = [['zfs', 'send', '-pvI', "$zfspath\@__pre_migration__", "$zfspath\@__migration__"], ['ssh', "root\@$target_host",
 +			'zfs', 'recv', '-uF', $zfspath]];
-
+ 
 -	    my $destroy_target = ['ssh', "root\@$target_host", 'zfs', 'destroy', "$zfspath\@__migration__"];
 +	    my $destroy_target = ['ssh', "root\@$target_host", 'zfs', 'destroy', "$zfspath\@__pre_migration__\%__migration__"];
   	    run_command($snap);
@@ -111,10 +111,10 @@ Index: proxpatches/rootfs/usr/share/perl5/PVE/Storage.pm
  		die $err;
  	    }
  	    run_command($destroy_target);
-@@ -579,6 +579,58 @@ sub storage_migrate {
+@@ -633,6 +633,58 @@ sub storage_migrate {
      }
  }
-
+ 
 +sub storage_zfs_pre_migrate {
 +    my ($cfg, $volid, $target_host, $target_storeid, $target_volname) = @_;
 +
@@ -169,3 +169,4 @@ Index: proxpatches/rootfs/usr/share/perl5/PVE/Storage.pm
 +
  sub vdisk_clone {
      my ($cfg, $volid, $vmid, $snap) = @_;
+ 
