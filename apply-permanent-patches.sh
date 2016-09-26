@@ -51,6 +51,10 @@ then
 		ln -s $x /usr/local/bin
 	done
 
+	cp init/znapzend.service /etc/systemd/system/
+	systemctl enable znapzend.service
+	systemctl start znapzend.service
+
 	cd -
 }
 fi
